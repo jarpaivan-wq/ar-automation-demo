@@ -1,0 +1,995 @@
+{
+  "name": "AR Automation - Upwork Project",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DROP VIEW IF EXISTS contact_summary_clean;\nDROP VIEW IF EXISTS accounts_clean;\nDROP VIEW IF EXISTS invoices_clean;\n\nDROP TABLE IF EXISTS contact_log;\nDROP TABLE IF EXISTS invoices_raw;\nDROP TABLE IF EXISTS accounts_raw;\n\nCREATE TABLE accounts_raw (\n  id SERIAL PRIMARY KEY,\n  customer_name VARCHAR(150),\n  email VARCHAR(150),\n  phone VARCHAR(50),\n  status VARCHAR(50),\n  created_at VARCHAR(50)\n);\n\nCREATE TABLE invoices_raw (\n  id SERIAL PRIMARY KEY,\n  account_id INTEGER REFERENCES accounts_raw(id),\n  amount_due VARCHAR(50),\n  due_date DATE,\n  invoice_status VARCHAR(30)\n);\n\nCREATE TABLE contact_log (\n  id SERIAL PRIMARY KEY,\n  account_id INTEGER REFERENCES accounts_raw(id),\n  contact_date DATE,\n  channel VARCHAR(20),\n  outcome VARCHAR(50)\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -768,
+        -208
+      ],
+      "id": "db13e1ad-3fd9-4412-8abd-09ac9cfc5142",
+      "name": "Create tables",
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const firstNames = [\"John\", \"Sarah\", \"Michael\", \"Emily\", \"David\", \"Jessica\", \"Robert\", \"Amanda\", \"Daniel\", \"Laura\"];\nconst lastNames = [\"Smith\", \"Johnson\", \"Williams\", \"Brown\", \"Davis\", \"Miller\", \"Wilson\", \"Moore\", \"Taylor\", \"Anderson\"];\nconst statuses = [\"active\", \"ACTIVE\", \"Inactive\", \"active\", \"pending\", \"Active\"]; // intentionally inconsistent casing\nconst phoneFormats = [\n  (n) => `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`,\n  (n) => `${n.slice(0,3)}-${n.slice(3,6)}-${n.slice(6)}`,\n  (n) => `+1${n}`,\n  (n) => n // raw digits, no formatting\n];\n\nconst dateFormats = [\n  (d) => `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`,   // MM/DD/YYYY\n  (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, // YYYY-MM-DD\n  (d) => `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}`,   // D-M-YYYY\n];\n\nconst items = [];\nfor (let i = 0; i < 60; i++) {\n  const first = firstNames[Math.floor(Math.random() * firstNames.length)];\n  const last = lastNames[Math.floor(Math.random() * lastNames.length)];\n  const fullName = Math.random() > 0.5 ? `${first} ${last}` : `${first.toUpperCase()} ${last.toUpperCase()}`;\n\n  const rawPhone = String(Math.floor(2000000000 + Math.random() * 7999999999));\n  const phoneFormatter = phoneFormats[Math.floor(Math.random() * phoneFormats.length)];\n\n  const randomDate = new Date(2025, Math.floor(Math.random() * 12), Math.floor(1 + Math.random() * 28));\n  const dateFormatter = dateFormats[Math.floor(Math.random() * dateFormats.length)];\n\n  // 5% chance of missing email, simulating real-world nulls\n  const hasEmail = Math.random() > 0.05;\n\n  items.push({\n    json: {\n      customer_name: fullName,\n      email: hasEmail ? `${first.toLowerCase()}.${last.toLowerCase()}@example.com` : null,\n      phone: phoneFormatter(rawPhone),\n      status: statuses[Math.floor(Math.random() * statuses.length)],\n      created_at: dateFormatter(randomDate)\n    }\n  });\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        -208
+      ],
+      "id": "f898e48b-8877-44d4-a484-59361490298f",
+      "name": "Generate Sample Data for accounts table"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "accounts_raw",
+          "mode": "list",
+          "cachedResultName": "accounts_raw"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -320,
+        -208
+      ],
+      "id": "4d95a191-38ba-4145-b515-9aa47210d604",
+      "name": "Load accounts (Raw)",
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoices = [];\n\nfor (const item of items) {\n  const accountId = item.json.id;\n  const numInvoices = Math.floor(1 + Math.random() * 3);\n\n  for (let i = 0; i < numInvoices; i++) {\n    const rawAmount = (50 + Math.random() * 5000).toFixed(2);\n    const amountFormats = [\n      `$${Number(rawAmount).toLocaleString('en-US')}`,\n      rawAmount,\n      `USD ${rawAmount}`,\n    ];\n    const formattedAmount = amountFormats[Math.floor(Math.random() * amountFormats.length)];\n\n    // Decide overdue-ness FIRST, then derive status and date consistently\n    const scenario = Math.random();\n    let daysOffset, invoiceStatus;\n\n    if (scenario < 0.25) {\n      // 25% paid — due date can be anywhere, doesn't matter\n      daysOffset = Math.floor(-60 + Math.random() * 90);\n      invoiceStatus = \"paid\";\n    } else if (scenario < 0.45) {\n      // 20% high risk — overdue 60+ days\n      daysOffset = -Math.floor(61 + Math.random() * 60);\n      invoiceStatus = \"overdue\";\n    } else if (scenario < 0.65) {\n      // 20% medium risk — overdue 31-60 days\n      daysOffset = -Math.floor(31 + Math.random() * 30);\n      invoiceStatus = \"overdue\";\n    } else if (scenario < 0.80) {\n      // 15% low risk — overdue 1-30 days\n      daysOffset = -Math.floor(1 + Math.random() * 30);\n      invoiceStatus = \"overdue\";\n    } else {\n      // 20% open, not yet due\n      daysOffset = Math.floor(1 + Math.random() * 60);\n      invoiceStatus = \"open\";\n    }\n\n    const dueDate = new Date();\n    dueDate.setDate(dueDate.getDate() + daysOffset);\n\n    invoices.push({\n      json: {\n        account_id: accountId,\n        amount_due: formattedAmount,\n        due_date: dueDate.toISOString().split('T')[0],\n        invoice_status: invoiceStatus\n      }\n    });\n  }\n}\n\nreturn invoices;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        -208
+      ],
+      "id": "037f5ff2-0339-4222-b06e-4d921f60b75e",
+      "name": "Generate Sample Data for invoices table"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "invoices_raw",
+          "mode": "list",
+          "cachedResultName": "invoices_raw"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "amount_due",
+              "displayName": "amount_due",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "invoice_status",
+              "displayName": "invoice_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        128,
+        -208
+      ],
+      "id": "4f385593-f14d-4362-b05c-e7e87dce7771",
+      "name": "Load invoices (Raw)",
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const channels = [\"email\", \"phone\", \"sms\", \"letter\"];\nconst outcomes = [\"no answer\", \"left voicemail\", \"spoke with customer\", \"payment promised\", \"disputed\", \"wrong number\"];\n\nconst contacts = [];\n\nfor (const item of items) {\n  const accountId = item.json.account_id; // note: comes from invoices, but we log contact per account\n  // We'll dedupe accounts later in SQL — for now, generate 0 to 3 contact attempts per invoice row\n  const numContacts = Math.floor(Math.random() * 4); // 0 to 3\n\n  for (let i = 0; i < numContacts; i++) {\n    const daysAgo = Math.floor(Math.random() * 60);\n    const contactDate = new Date();\n    contactDate.setDate(contactDate.getDate() - daysAgo);\n\n    contacts.push({\n      json: {\n        account_id: accountId,\n        contact_date: contactDate.toISOString().split('T')[0],\n        channel: channels[Math.floor(Math.random() * channels.length)],\n        outcome: outcomes[Math.floor(Math.random() * outcomes.length)]\n      }\n    });\n  }\n}\n\nreturn contacts;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -208
+      ],
+      "id": "6da1d8cb-f053-4993-ac20-4266ebbee3b6",
+      "name": "Generate Sample Data for contact_log table"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "contact_log",
+          "mode": "list",
+          "cachedResultName": "contact_log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contact_date",
+              "displayName": "contact_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "outcome",
+              "displayName": "outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        576,
+        -208
+      ],
+      "id": "ea56e755-0db0-43ee-a6be-74daeee852cd",
+      "name": "Load contact_log (Raw)",
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DROP VIEW IF EXISTS accounts_clean;\nDROP VIEW IF EXISTS invoices_clean;\nDROP VIEW IF EXISTS contact_summary_clean;\n\nCREATE VIEW invoices_clean AS\nSELECT\n  id,\n  account_id,\n  CAST(REGEXP_REPLACE(amount_due, '[^0-9.]', '', 'g') AS NUMERIC) AS amount_due,\n  due_date,\n  LOWER(TRIM(invoice_status)) AS invoice_status,\n  CASE\n    WHEN due_date < CURRENT_DATE AND LOWER(TRIM(invoice_status)) != 'paid'\n    THEN CURRENT_DATE - due_date\n    ELSE 0\n  END AS days_overdue\nFROM invoices_raw;\n\nCREATE VIEW accounts_clean AS\nSELECT\n  a.id,\n  INITCAP(TRIM(a.customer_name)) AS customer_name,\n  COALESCE(a.email, 'no-email-on-file@unknown.com') AS email,\n  a.phone,\n  LOWER(TRIM(a.status)) AS status,\n  CASE\n    WHEN a.created_at ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$' THEN TO_DATE(a.created_at, 'MM/DD/YYYY')\n    WHEN a.created_at ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(a.created_at, 'YYYY-MM-DD')\n    WHEN a.created_at ~ '^\\d{1,2}-\\d{1,2}-\\d{4}$' THEN TO_DATE(a.created_at, 'DD-MM-YYYY')\n    ELSE NULL\n  END AS created_at,\n  CASE\n    WHEN COALESCE(MAX(i.days_overdue), 0) > 60 THEN 'high'\n    WHEN COALESCE(MAX(i.days_overdue), 0) > 30 THEN 'medium'\n    ELSE 'low'\n  END AS risk_level\nFROM accounts_raw a\nLEFT JOIN invoices_clean i ON a.id = i.account_id\nGROUP BY a.id, a.customer_name, a.email, a.phone, a.status, a.created_at;\n\nCREATE VIEW contact_summary_clean AS\nSELECT\n  account_id,\n  COUNT(*) AS total_contacts,\n  MAX(contact_date) AS last_contact_date,\n  COUNT(CASE WHEN outcome = 'payment promised' THEN 1 END) AS promises_made,\n  COUNT(CASE WHEN outcome = 'spoke with customer' THEN 1 END) AS successful_contacts\nFROM contact_log\nGROUP BY account_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -976,
+        32
+      ],
+      "id": "7fb53e4d-2f7d-43cf-b434-e23e5a55e595",
+      "name": "Clean & Transform Accounts",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Data cleaning and transformation",
+        "height": 80,
+        "width": 192,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1248,
+        32
+      ],
+      "typeVersion": 1,
+      "id": "06b7e891-8cfb-410b-90e8-d4c98bff359f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Generate sample data",
+        "height": 80,
+        "width": 192
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1248,
+        -192
+      ],
+      "typeVersion": 1,
+      "id": "0f2e27d7-5b5d-47e6-b5b5-acadec3102e0",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  a.id AS account_id,\n  a.customer_name,\n  a.email,\n  a.status,\n  COALESCE(SUM(CASE WHEN i.invoice_status != 'paid' THEN i.amount_due ELSE 0 END), 0) AS total_outstanding,\n  COALESCE(SUM(CASE WHEN i.invoice_status = 'paid' THEN i.amount_due ELSE 0 END), 0) AS total_paid,\n  COALESCE(MAX(i.days_overdue), 0) AS max_days_overdue,\n  COALESCE(COUNT(CASE WHEN i.invoice_status = 'overdue' THEN 1 END), 0) AS overdue_invoice_count,\n  COALESCE(c.total_contacts, 0) AS total_contacts,\n  c.last_contact_date,\n  COALESCE(c.promises_made, 0) AS promises_made,\n  CASE\n    WHEN COALESCE(MAX(i.days_overdue), 0) > 60 THEN 'high'\n    WHEN COALESCE(MAX(i.days_overdue), 0) > 30 THEN 'medium'\n    ELSE 'low'\n  END AS risk_level\nFROM accounts_clean a\nLEFT JOIN invoices_clean i ON a.id = i.account_id\nLEFT JOIN contact_summary_clean c ON a.id = c.account_id\nGROUP BY a.id, a.customer_name, a.email, a.status, c.total_contacts, c.last_contact_date, c.promises_made\nORDER BY total_outstanding DESC;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        -976,
+        272
+      ],
+      "id": "d5e08ddb-a88e-4647-937f-1064271d0d63",
+      "name": "Build AR Summary Report",
+      "executeOnce": true,
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "\nJoin and group tables",
+        "height": 80,
+        "width": 192
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1248,
+        272
+      ],
+      "typeVersion": 1,
+      "id": "f172d776-0f0d-4f47-b6c1-112af6a4b092",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "68b8f2af-9622-40d2-84d5-9cbb8bd1a85c",
+              "leftValue": "={{ $json.risk_level }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -976,
+        720
+      ],
+      "id": "706e84c3-125c-4536-985c-7ab2c0bfb69f",
+      "name": "Filter High-Risk Accounts"
+    },
+    {
+      "parameters": {
+        "jsCode": "const accountList = items.map(item =>\n  `• *${item.json.customer_name}* — $${item.json.total_outstanding} outstanding, ${item.json.max_days_overdue} days overdue`\n).join('\\n');\n\nconst message = `⚠️ *High-Risk Accounts Alert*\\n${items.length} account(s) flagged with 60+ days overdue:\\n\\n${accountList}`;\n\nreturn [\n  {\n    json: {\n      slack_message: message,\n      account_count: items.length,\n      accounts: items.map(item => ({\n        customer_name: item.json.customer_name,\n        total_outstanding: item.json.total_outstanding,\n        max_days_overdue: item.json.max_days_overdue\n      }))\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        704
+      ],
+      "id": "ecccecca-7dbd-45fd-91a2-a022827d0884",
+      "name": "Build Slack Alert Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL,
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slack_message }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -480,
+        704
+      ],
+      "id": "fd24b84e-6119-4018-b7f1-493858bd9e84",
+      "name": "Send Slack Alert"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1gn67huexbANVZ_CKwOq73a1hRVreQ6bK4D4Mc4eZtXw/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "AR Automation Demo - Daily Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gn67huexbANVZ_CKwOq73a1hRVreQ6bK4D4Mc4eZtXw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "account_id"
+          ],
+          "schema": [
+            {
+              "id": "1|",
+              "displayName": "1|",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_outstanding",
+              "displayName": "total_outstanding",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_paid",
+              "displayName": "total_paid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "max_days_overdue",
+              "displayName": "max_days_overdue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "overdue_invoice_count",
+              "displayName": "overdue_invoice_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_contacts",
+              "displayName": "total_contacts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_contact_date",
+              "displayName": "last_contact_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "promises_made",
+              "displayName": "promises_made",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -976,
+        496
+      ],
+      "id": "3da843cd-52b6-48df-b715-7b671af10b70",
+      "name": "Update Google Sheets Report",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "m078WhR8ShPJY7GR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        -208
+      ],
+      "id": "0d0c0706-3b4f-4737-81fb-40fd951fece1",
+      "name": "Manual Trigger (Testing)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -1008,
+        -384
+      ],
+      "id": "0ac4c63c-9df7-4ee1-918d-2d6ca9056aec",
+      "name": "Daily Schedule Trigger (7 AM)"
+    },
+    {
+      "parameters": {
+        "content": "Alert message and report",
+        "height": 80,
+        "width": 192
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1248,
+        576
+      ],
+      "typeVersion": 1,
+      "id": "b92b6e40-b694-4fbf-90c8-374bb7d63b72",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an Accounts Receivable assistant. You have direct access to a Postgres database with customer account, invoice, and contact history data.\n\nWhen asked about a customer, ALWAYS use the Postgres tool to query real data before responding. Don't ask for permission or additional identifiers — execute the query yourself and respond with clear, concise information in English.\n\nIf the customer doesn't exist in the data, say so clearly."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -752,
+        1152
+      ],
+      "id": "fde4f9d7-24b3-4537-b69b-ed2b4c305a8e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -784,
+        1376
+      ],
+      "id": "0691dc2a-d2d1-45f2-b00a-41ab85964a9f",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "1Hkc5rvZPHVmc79U",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Query customer account data including outstanding balance, days overdue, risk level, and contact history.",
+        "operation": "executeQuery",
+        "query": "WITH invoice_summary AS (\n  SELECT\n    account_id,\n    SUM(CASE WHEN invoice_status != 'paid' THEN amount_due ELSE 0 END) AS total_outstanding,\n    MAX(days_overdue) AS max_days_overdue\n  FROM invoices_clean\n  GROUP BY account_id\n),\ncontact_summary AS (\n  SELECT\n    account_id,\n    COUNT(*) AS total_contacts,\n    MAX(contact_date) AS last_contact_date,\n    COUNT(CASE WHEN outcome = 'payment promised' THEN 1 END) AS promises_made\n  FROM contact_log\n  GROUP BY account_id\n)\nSELECT\n  a.customer_name,\n  COALESCE(i.total_outstanding, 0) AS total_outstanding,\n  COALESCE(i.max_days_overdue, 0) AS max_days_overdue,\n  CASE\n    WHEN COALESCE(i.max_days_overdue, 0) > 60 THEN 'high'\n    WHEN COALESCE(i.max_days_overdue, 0) > 30 THEN 'medium'\n    ELSE 'low'\n  END AS risk_level,\n  COALESCE(c.total_contacts, 0) AS total_contacts,\n  c.last_contact_date,\n  COALESCE(c.promises_made, 0) AS promises_made\nFROM accounts_clean a\nLEFT JOIN invoice_summary i ON a.id = i.account_id\nLEFT JOIN contact_summary c ON a.id = c.account_id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.7,
+      "position": [
+        -608,
+        1376
+      ],
+      "id": "bfff817c-4f55-4328-8347-635fb758f7ff",
+      "name": "Query AR Data",
+      "credentials": {
+        "postgres": {
+          "id": "kpSyHOnUrqc25pSd",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -960,
+        1152
+      ],
+      "id": "a49964e3-b977-4469-8da8-d212d3dcfbbd",
+      "name": "When chat message received",
+      "webhookId": "87770248-72e3-4e94-912f-41dcf7b3e334"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Create tables": {
+      "main": [
+        [
+          {
+            "node": "Generate Sample Data for accounts table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Sample Data for accounts table": {
+      "main": [
+        [
+          {
+            "node": "Load accounts (Raw)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load accounts (Raw)": {
+      "main": [
+        [
+          {
+            "node": "Generate Sample Data for invoices table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Sample Data for invoices table": {
+      "main": [
+        [
+          {
+            "node": "Load invoices (Raw)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load invoices (Raw)": {
+      "main": [
+        [
+          {
+            "node": "Generate Sample Data for contact_log table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Sample Data for contact_log table": {
+      "main": [
+        [
+          {
+            "node": "Load contact_log (Raw)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load contact_log (Raw)": {
+      "main": [
+        [
+          {
+            "node": "Clean & Transform Accounts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean & Transform Accounts": {
+      "main": [
+        [
+          {
+            "node": "Build AR Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AR Summary Report": {
+      "main": [
+        [
+          {
+            "node": "Filter High-Risk Accounts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Google Sheets Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter High-Risk Accounts": {
+      "main": [
+        [
+          {
+            "node": "Build Slack Alert Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Slack Alert Message": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (Testing)": {
+      "main": [
+        [
+          {
+            "node": "Create tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Schedule Trigger (7 AM)": {
+      "main": [
+        [
+          {
+            "node": "Create tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query AR Data": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5f87c439-8ca0-490f-bd76-49fdc5ffa73b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f3927527f29583852aea3427e440aaab5eb9d5b6a789fa215bf37ac14af9425f"
+  },
+  "nodeGroups": [],
+  "id": "PTjstyjOucx5e4uv",
+  "tags": []
+}
